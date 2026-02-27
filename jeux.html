@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Super Jeu Bébé Premium 🎈</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+    background:linear-gradient(#a8e6ff,#ffffff);
+    font-family:Arial;
+    touch-action:manipulation;
+    transition:0.5s;
+}
+#topbar{
+    position:fixed;
+    top:10px;
+    left:20px;
+    font-size:24px;
+    font-weight:bold;
+}
+#menu{
+    position:fixed;
+    top:10px;
+    right:20px;
+}
+button{
+    font-size:16px;
+    padding:6px 12px;
+    margin:2px;
+    border-radius:12px;
+    border:none;
+}
+#endScreen{
+    position:fixed;
+    inset:0;
+    background:rgba(255,255,255,0.95);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    font-size:36px;
+}
+canvas{display:block;}
+</style>
+</head>
+<body>
+
+<div id="topbar">Score ⭐ 0</div>
+
+<div id="menu">
+<button onclick="setMode('animals')">🐶</button>
+<button onclick="setMode('numbers')">🔢</button>
+<button onclick="setMode('learning')">🧠</button>
+<button onclick="toggleNight()">🌙</button>
+<button onclick="parentAccess()">👨‍👩‍👧</button>
+</div>
+
+<div id="endScreen">
+🎉 Bravo Champion ! 🎉
+<br><br>
+<button onclick="restart()">Rejouer</button>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let score=0;
+let stars=0;
+let mode="animals";
+let bubbles=[];
+let particles=[];
+let targetNumber="1";
+let night=false;
+
+const colors=["#ff7675","#74b9ff","#55efc4","#ffeaa7","#a29bfe","#fd79a8"];
+const animals=["🐶","🐱","🐸","🐵","🦄","🐼"];
+const numbers=["1","2","3","4","5"];
+
+function speak(text){
+    let msg=new SpeechSynthesisUtterance(text);
+    msg.lang="fr-FR";
+    speechSynthesis.speak(msg);
+}
+
+function setMode(m){
+    mode=m;
+    if(mode==="learning"){
+        targetNumber=numbers[Math.floor(Math.random()*numbers.length)];
+        speak("Trouve le chiffre "+targetNumber);
+    }
+}
+
+function toggleNight(){
+    night=!night;
+    if(night){
+        document.body.style.background="linear-gradient(#001f3f,#000)";
+        document.body.style.color="white";
+    }else{
+        document.body.style.background="linear-gradient(#a8e6ff,#ffffff)";
+        document.body.style.color="black";
+    }
+}
+
+class Bubble{
+constructor(){
+this.radius=Math.random()*30+40;
+this.x=Math.random()*(canvas.width-this.radius*2)+this.radius;
+this.y=canvas.height+this.radius;
+this.speed=Math.random()*1.5+1;
+this.color=colors[Math.floor(Math.random()*colors.length)];
+this.content="";
+if(mode==="animals") this.content=animals[Math.floor(Math.random()*animals.length)];
+if(mode==="numbers"||mode==="learning") this.content=numbers[Math.floor(Math.random()*numbers.length)];
+}
+update(){ this.y-=this.speed; }
+draw(){
+ctx.beginPath();
+ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+ctx.fillStyle=this.color;
+ctx.fill();
+ctx.font=this.radius+"px Arial";
+ctx.textAlign="center";
+ctx.textBaseline="middle";
+ctx.fillStyle="#000";
+ctx.fillText(this.content,this.x,this.y);
+}
+hit(x,y){
+const dx=x-this.x;
+const dy=y-this.y;
+return dx*dx+dy*dy<this.radius*this.radius;
+}
+}
+
+class Particle{
+constructor(x,y,color){
+this.x=x; this.y=y;
+this.size=Math.random()*6+4;
+this.speedX=(Math.random()-0.5)*6;
+this.speedY=(Math.random()-0.5)*6;
+this.life=30;
+this.color=color;
+}
+update(){ this.x+=this.speedX; this.y+=this.speedY; this.life--; }
+draw(){
+ctx.beginPath();
+ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+ctx.fillStyle=this.color;
+ctx.fill();
+}
+}
+
+function spawn(){ bubbles.push(new Bubble()); }
+
+function update(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+bubbles.forEach((b,i)=>{
+b.update(); b.draw();
+if(b.y<-b.radius) bubbles.splice(i,1);
+});
+
+particles.forEach((p,i)=>{
+p.update(); p.draw();
+if(p.life<=0) particles.splice(i,1);
+});
+
+requestAnimationFrame(update);
+}
+
+function pop(x,y){
+bubbles.forEach((b,i)=>{
+if(b.hit(x,y)){
+if(mode==="learning"){
+if(b.content===targetNumber){
+score++;
+stars++;
+speak("Bravo !");
+targetNumber=numbers[Math.floor(Math.random()*numbers.length)];
+speak("Trouve le chiffre "+targetNumber);
+}else{
+speak("Essaye encore");
+return;
+}
+}else{
+score++;
+}
+document.getElementById("topbar").innerText="Score ⭐ "+score+"  Étoiles 🌟 "+stars;
+for(let j=0;j<20;j++) particles.push(new Particle(b.x,b.y,b.color));
+bubbles.splice(i,1);
+if(score>=20){
+document.getElementById("endScreen").style.display="flex";
+}
+}
+});
+}
+
+canvas.addEventListener("click",e=>pop(e.clientX,e.clientY));
+canvas.addEventListener("touchstart",e=>{
+let t=e.touches[0];
+pop(t.clientX,t.clientY);
+});
+
+function restart(){
+score=0;
+stars=0;
+bubbles=[];
+particles=[];
+document.getElementById("topbar").innerText="Score ⭐ 0";
+document.getElementById("endScreen").style.display="none";
+}
+
+function parentAccess(){
+let answer=prompt("Combien font 2 + 3 ?");
+if(answer==="5"){
+alert("Accès parents validé ✅");
+}else{
+alert("Accès refusé ❌");
+}
+}
+
+setInterval(spawn,900);
+update();
+</script>
+
+</body>
+</html>
